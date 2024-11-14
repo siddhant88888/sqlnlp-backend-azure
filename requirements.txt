@@ -6,7 +6,11 @@ sqlalchemy==2.0.36
 mysql-connector-python==9.1.0
 python-dotenv==1.0.1
 langchain==0.3.4
+langchain-community==0.0.24
+langchain-core==0.1.32
 langchain-openai==0.2.3
+langchain-aws==0.0.1
+langchain-anthropic==0.1.4
 openai==1.52.0
 anthropic==0.37.1
 boto3==1.35.49
