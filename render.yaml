@@ -3,15 +3,14 @@ services:
     name: sql-assistant-api
     env: python
     buildCommand: |
-      # Install Rust
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      source $HOME/.cargo/env
-      # Install system dependencies
-      apt-get update && apt-get install -y build-essential
-      # Install Python dependencies
+      # Update pip and install dependencies
       pip install --upgrade pip
-      pip install -r requirements.txt
+      pip install --only-binary=:all: -r requirements.txt
     startCommand: uvicorn sql_assistant_api:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
+      - key: PIP_ONLY_BINARY
+        value: ":all:"
+      - key: PIP_PREFER_BINARY
+        value: "1"
