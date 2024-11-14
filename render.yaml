@@ -2,7 +2,15 @@ services:
   - type: web
     name: sql-assistant-api
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      # Install Rust
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      source $HOME/.cargo/env
+      # Install system dependencies
+      apt-get update && apt-get install -y build-essential
+      # Install Python dependencies
+      pip install --upgrade pip
+      pip install -r requirements.txt
     startCommand: uvicorn sql_assistant_api:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
