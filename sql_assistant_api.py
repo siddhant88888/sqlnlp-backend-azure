@@ -12,6 +12,11 @@ from langchain_anthropic import ChatAnthropic
 import boto3
 import os
 import re
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -29,9 +34,7 @@ app.add_middleware(
 
 # Pydantic model for connection request body
 class ConnectionRequest(BaseModel):
-    db_username: str
-    db_password: str
-    db_name: str
+    db_uri: str
     llm_type: str
     api_key: str = None
     aws_access_key_id: str = None
@@ -40,9 +43,7 @@ class ConnectionRequest(BaseModel):
 # Pydantic model for query request body
 class QueryRequest(BaseModel):
     question: str
-    db_username: str
-    db_password: str
-    db_name: str
+    db_uri: str
     llm_type: str
     api_key: str = None
     aws_access_key_id: str = None
@@ -50,7 +51,11 @@ class QueryRequest(BaseModel):
 
 # Function to get database connection
 def get_database_connection(db_uri):
-    return SQLDatabase.from_uri(db_uri)
+    try:
+        return SQLDatabase.from_uri(db_uri)
+    except Exception as e:
+        logger.error(f"Error connecting to database: {str(e)}")
+        raise
 
 # Function to get schema
 def get_schema(db):
@@ -75,23 +80,20 @@ def extract_sql_query(response):
 
 @app.post("/connect")
 async def connect(request: ConnectionRequest):
-    # Construct the database URI
-    db_uri = f"mysql+mysqlconnector://{request.db_username}:{request.db_password}@localhost:3306/{request.db_name}"
-
+    logger.info(f"Received connection request for database URI: {request.db_uri}")
     try:
-        db = get_database_connection(db_uri)
+        db = get_database_connection(request.db_uri)
         schema = get_schema(db)
+        logger.info("Successfully connected to the database and retrieved schema")
         return {"schema": schema}
     except Exception as e:
+        logger.error(f"Failed to connect to the database: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Database connection failed: {str(e)}")
 
 @app.post("/query")
 async def process_query(request: QueryRequest):
-    # Construct the database URI
-    db_uri = f"mysql+mysqlconnector://{request.db_username}:{request.db_password}@localhost:3306/{request.db_name}"
-
     try:
-        db = get_database_connection(db_uri)
+        db = get_database_connection(request.db_uri)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Database connection failed: {str(e)}")
 
