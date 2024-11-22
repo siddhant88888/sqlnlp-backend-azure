@@ -133,15 +133,87 @@ async def process_query(request: QueryRequest):
     clean_sql = RunnableLambda(func=clean)
 
     template = """
-    Based on the table schema below, write a SQL query or multiple SQL queries if necessary that would answer the user's question. 
-    Make sure to handle complex questions that might require multiple queries or subqueries.
-    If multiple queries are needed, separate them with semicolons.
-    Provide ONLY the SQL query without any additional explanation.
-    
-    {schema}
+    You are an expert SQL query generator. Based on the table schema provided below, write a syntactically correct SQL query.
 
-    Question: {question} 
-    SQL Query:
+Guidelines:
+Provide only and ONLY the SQL query as the response. Do not include any explanation, comments, or additional information.
+Ensure the SQL query is syntactically correct and answers the provided question accurately.
+Always return sql queries only.
+If there are multiple sql queries, seperate them by a semicolon '|'.
+Schema:
+{schema}
+
+Question:
+{question}
+
+SQL Query Examples:
+
+Example 1:
+```
+Schema:
+Table: employees  
+Columns: id (INTEGER), name (TEXT), department (TEXT), salary (INTEGER)
+
+Question:
+"Find the names of employees in the 'HR' department."
+
+SQL Query:
+SELECT name FROM employees WHERE department = 'HR'; 
+```
+
+Example 2:
+```
+Schema:
+Table: orders  
+Columns: order_id (INTEGER), customer_id (INTEGER), amount (DECIMAL), order_date (DATE)
+
+Question:
+"Retrieve the total amount of orders placed after 2022-01-01."
+
+SQL Query:
+SELECT SUM(amount) FROM orders WHERE order_date > '2022-01-01';
+```
+
+Example 3:
+```
+Schema:
+Table: products  
+Columns: product_id (INTEGER), product_name (TEXT), price (DECIMAL), stock (INTEGER)
+
+Question:
+"Find the names of all products priced over 50."
+
+SQL Query:
+SELECT product_name FROM products WHERE price > 50;
+```
+Example 4:
+```
+Schema:
+Table: orders  
+Columns: order_id (INTEGER), customer_id (INTEGER), amount (DECIMAL), order_date (DATE)
+Question:
+"Retrieve the total number of orders placed and the total amount of all orders."
+SQL Query:
+SELECT COUNT(*) FROM orders | SELECT SUM(amount) FROM orders;
+```
+
+Example 5:
+```
+Schema:
+Table: products  
+Columns: product_id (INTEGER), product_name (TEXT), price (DECIMAL), stock (INTEGER)
+Question:
+"Find the names of products priced over 50 and also find the total stock for those products."
+SQL Query:
+SELECT product_name FROM products WHERE price > 50 | SELECT SUM(stock) FROM products WHERE price > 50;
+```
+Schema:
+{schema}
+
+Question:
+{question}
+
+SQL Query:
     """
 
     prompt = ChatPromptTemplate.from_template(template)
@@ -155,20 +227,19 @@ async def process_query(request: QueryRequest):
     )
 
     # Generate the SQL query
-    sql_query = sql_chain.invoke({"question": request.question})
+    sql_query = sql_chain.invoke({"question": request.question, "schema": schema})
     
     # Extract the actual SQL query
     extracted_sql_query = extract_sql_query(sql_query)
 
     template_response = """
-    Based on the table schema, question, SQL query, and SQL response, write a detailed natural language response.
+    Based on the table schema, question and SQL response, write a concise response.
     Include relevant numbers, names, and any other specific information from the SQL response.
     If multiple queries were executed, summarize the results of all queries.
 
     {schema}
 
     Question: {question} 
-    SQL query: {query} 
     SQL response: {response}
 
     Detailed Answer:
@@ -177,16 +248,26 @@ async def process_query(request: QueryRequest):
     prompt_response = ChatPromptTemplate.from_template(template_response)
 
     def run_query(final_query): 
-        queries = final_query.split(';')
+        print("FINAL QUERY: ", final_query)
+        queries = final_query.split('|')
         results = []
-        for query in queries:
-            if query.strip():
-                results.append(db.run(query))
-        return '\n'.join(results)
+        try: 
+            for query in queries:
+                if query.strip():
+                    try: 
+                        results_str = "query: " + query, "response: " + str(db.run(query))
+                        results.append(results_str)
+                    except: 
+                        print("INVALID QUERY: ", query)
+            print("RESULTS", results)            
+            return results
+        except Exception as e: 
+            print("Something went wrong")
+            return ""
 
     full_chain = (
         RunnablePassthrough.assign(
-            query=lambda _: extracted_sql_query,
+            # query=lambda _: extracted_sql_query,
             schema=lambda _: schema,
             response=lambda _: run_query(extracted_sql_query),
         )
