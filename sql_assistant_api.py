@@ -152,22 +152,12 @@ async def process_query(request: QueryRequest):
     elif request.llm_type == "claude-3-sonnet":
         if not request.api_key:
             raise HTTPException(status_code=400, detail="Anthropic API key is required")
-        try:
-            llm = ChatAnthropic(
+        
+        llm = ChatAnthropic(
                 model="claude-3-sonnet-20240229",
                 api_key=request.api_key
             )
-        except TypeError as e:
-            if "unexpected keyword argument 'proxies'" in str(e):
-                # If 'proxies' is causing issues, try initializing without it
-                import anthropic
-                client = anthropic.Anthropic(api_key=request.api_key)
-                llm = ChatAnthropic(
-                    model="claude-3-sonnet-20240229",
-                    client=client
-                )
-            else:
-                raise
+        
     elif request.llm_type in groq_models:
         client = openai.OpenAI(
             base_url="https://api.groq.com/openai/v1",
